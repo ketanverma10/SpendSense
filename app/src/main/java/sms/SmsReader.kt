@@ -42,12 +42,14 @@ class SmsReader(
                     continue
                 }
 
-                val amount =
+                val amountStr =
                     SmsParser.extractAmount(message)
 
-                if (amount == null) {
+                if (amountStr == null) {
                     continue
                 }
+
+                val amount = amountStr.replace(Regex("[^0-9.]"), "").toDoubleOrNull() ?: 0.0
 
                 val merchant =
                     SmsParser.extractMerchant(message)

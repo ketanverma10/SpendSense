@@ -17,9 +17,12 @@ object SmsParser {
     fun extractAmount(message: String): String? {
 
         val regex =
-            Regex("(₹|Rs\\.?|INR)\\s?\\d+(\\.\\d{1,2})?")
+            Regex("(₹|Rs\\.?|INR)\\s*[\\d,]+(\\.\\d{1,2})?", RegexOption.IGNORE_CASE)
 
-        return regex.find(message)?.value
+        val match = regex.find(message)?.value
+        
+        // Remove currency symbols and commas for easier numeric conversion
+        return match?.replace(Regex("(₹|Rs\\.?|INR|,)", RegexOption.IGNORE_CASE), "")?.trim()
     }
 
     // ✅ Extract merchant

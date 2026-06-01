@@ -8,24 +8,20 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SuggestionChip
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.Modifier
-import androidx.core.content.ContextCompat
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.ListItem
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.RateReview
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import data.AppDatabase
 import data.Transaction
@@ -33,6 +29,7 @@ import data.TransactionRepository
 import sms.SmsReader
 import com.example.spendsense.ui.theme.SpendSenseTheme
 import utils.Constants
+import utils.CurrencyFormatter
 
 class MainActivity : ComponentActivity() {
 
@@ -56,14 +53,20 @@ class MainActivity : ComponentActivity() {
         val repository = TransactionRepository(database.transactionDao(), smsReader)
         val viewModelFactory = TransactionViewModel.Factory(repository)
         val categorizationViewModelFactory = CategorizationViewModel.Factory(repository)
+        val reviewQueueViewModelFactory = ReviewQueueViewModel.Factory(repository)
+        val dashboardViewModelFactory = DashboardViewModel.Factory(repository)
 
         setContent {
             SpendSenseTheme {
                 val viewModel: TransactionViewModel = viewModel(factory = viewModelFactory)
                 val categorizationViewModel: CategorizationViewModel = viewModel(factory = categorizationViewModelFactory)
+                val reviewQueueViewModel: ReviewQueueViewModel = viewModel(factory = reviewQueueViewModelFactory)
+                val dashboardViewModel: DashboardViewModel = viewModel(factory = dashboardViewModelFactory)
                 
                 val transactions by viewModel.allTransactions.collectAsState()
                 val selectedTransaction by categorizationViewModel.selectedTransaction
+                
+                var selectedTab by remember { mutableIntStateOf(0) }
 
                 LaunchedEffect(Unit) {
                     if (ContextCompat.checkSelfPermission(
@@ -77,16 +80,52 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    TransactionList(
-                        transactions = transactions,
-                        onTransactionClick = { transaction ->
-                            if (!transaction.isCategorized) {
-                                categorizationViewModel.selectTransaction(transaction)
-                            }
-                        },
-                        modifier = Modifier.padding(innerPadding)
-                    )
+                Scaffold(
+                    modifier = Modifier.fillMaxSize(),
+                    bottomBar = {
+                        NavigationBar {
+                            NavigationBarItem(
+                                selected = selectedTab == 0,
+                                onClick = { selectedTab = 0 },
+                                icon = { Icon(Icons.Default.Dashboard, contentDescription = null) },
+                                label = { Text("Dashboard") }
+                            )
+                            NavigationBarItem(
+                                selected = selectedTab == 1,
+                                onClick = { selectedTab = 1 },
+                                icon = { Icon(Icons.Default.History, contentDescription = null) },
+                                label = { Text("History") }
+                            )
+                            NavigationBarItem(
+                                selected = selectedTab == 2,
+                                onClick = { selectedTab = 2 },
+                                icon = { Icon(Icons.Default.RateReview, contentDescription = null) },
+                                label = { Text("Review") }
+                            )
+                        }
+                    }
+                ) { innerPadding ->
+                    Box(modifier = Modifier.padding(innerPadding)) {
+                        when (selectedTab) {
+                            0 -> DashboardScreen(viewModel = dashboardViewModel)
+                            1 -> TransactionList(
+                                transactions = transactions,
+                                onTransactionClick = { transaction ->
+                                    if (!transaction.isCategorized) {
+                                        categorizationViewModel.selectTransaction(transaction)
+                                    }
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                            2 -> ReviewQueueScreen(
+                                viewModel = reviewQueueViewModel,
+                                onEdit = { transaction ->
+                                    categorizationViewModel.selectTransaction(transaction)
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
 
                     if (selectedTransaction != null) {
                         CategorizationScreen(
@@ -118,7 +157,7 @@ fun TransactionList(
                         }
                     }
                 },
-                trailingContent = { Text(transaction.amount) },
+                trailingContent = { Text(CurrencyFormatter.format(transaction.amount)) },
                 modifier = Modifier.clickable { onTransactionClick(transaction) }
             )
             HorizontalDivider()
